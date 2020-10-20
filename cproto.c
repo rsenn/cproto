@@ -15,6 +15,16 @@ extern char *optarg;
 extern int optind;
 #endif
 
+#ifndef PREFIX
+# if defined(MSDOS) && defined(__TURBOC__)
+#  define PREFIX "/tc/include"
+# elif defined(vms)
+#  define PREFIX "sys$library:"
+# else
+#  define PREFIX "/usr/include"
+# endif
+#endif
+
 /* Name of the program (from argv[0]) */
 char *progname;
 
@@ -76,6 +86,9 @@ boolean proto_comments = FALSE;
 
 /* If TRUE, output comments naming source files */
 boolean file_comments = TRUE;
+
+/* If TRUE, don't add standard include directory */
+boolean no_stdinc = FALSE;
 
 /* Conditional compilation directive output in front of function definitions */
 const char *func_directive = "#ifdef ANSI_FUNC";
@@ -311,46 +324,48 @@ trim_path_sep(char *s)
 /* Output usage message and exit.
  */
 static void
-usage(void)
+usage(int exitcode)
 {
-    fprintf(stderr, "usage: %s [ option ... ] [ file ... ]\n", progname);
-    fputs("Options:\n", stderr);
-    fputs("  -a, -t           Convert function definitions to ANSI or traditional style\n", stderr);
-    fputs("  -b               Rewrite function definitions in both styles\n", stderr);
-    fputs("  -c               Enable comments in prototype parameters\n", stderr);
-    fputs("  -e               Output \"extern\" keyword before global declarations\n", stderr);
-    fputs("  -f n             Set function prototype style (0 to 3)\n", stderr);
+    fprintf(stdout, "usage: %s [ option ... ] [ file ... ]\n", progname);
+    fputs("Options:\n", stdout);
+    fputs("  -a, -t           Convert function definitions to ANSI or traditional style\n", stdout);
+    fputs("  -b               Rewrite function definitions in both styles\n", stdout);
+    fputs("  -c               Enable comments in prototype parameters\n", stdout);
+    fputs("  -n               Don't include standard include paths\n", stdout);
+    fputs("  -N               Don't print filename comments\n", stdout);
+    fputs("  -e               Output \"extern\" keyword before global declarations\n", stdout);
+    fputs("  -f n             Set function prototype style (0 to 3)\n", stdout);
 #if OPT_LINTLIBRARY
-    fputs("  -l               Generate output in lint-library style\n", stderr);
+    fputs("  -l               Generate output in lint-library style\n", stdout);
 #endif
-    fputs("  -o file          Redirect output to file\n", stderr);
-    fputs("  -O file          Redirect errors to file\n", stderr);
-    fputs("  -p               Disable formal parameter promotion\n", stderr);
-    fputs("  -q               Disable include file read failure messages\n", stderr);
-    fputs("  -s               Output static declarations also\n", stderr);
-    fputs("  -S               Output static declarations only\n", stderr);
-    fputs("  -i               Output inline declarations also\n", stderr);
+    fputs("  -o file          Redirect output to file\n", stdout);
+    fputs("  -O file          Redirect errors to file\n", stdout);
+    fputs("  -p               Disable formal parameter promotion\n", stdout);
+    fputs("  -q               Disable include file read failure messages\n", stdout);
+    fputs("  -s               Output static declarations also\n", stdout);
+    fputs("  -S               Output static declarations only\n", stdout);
+    fputs("  -i               Output inline declarations also\n", stdout);
 #if OPT_LINTLIBRARY
-    fputs("  -T               Output type definitions\n", stderr);
+    fputs("  -T               Output type definitions\n", stdout);
 #endif
-    fputs("  -v               Output variable declarations\n", stderr);
-    fputs("  -x               Output variables and functions declared \"extern\"\n", stderr);
+    fputs("  -v               Output variable declarations\n", stdout);
+    fputs("  -x               Output variables and functions declared \"extern\"\n", stdout);
 #if OPT_LINTLIBRARY
-    fputs("  -X level         Limit externs to given include-level\n", stderr);
+    fputs("  -X level         Limit externs to given include-level\n", stdout);
 #endif
-    fputs("  -m               Put macro around prototype parameters\n", stderr);
-    fputs("  -M name          Set name of prototype macro\n", stderr);
-    fputs("  -d               Omit prototype macro definition\n", stderr);
-    fputs("  -P template      Set prototype format template \" int f (a, b)\"\n", stderr);
-    fputs("  -F template      Set function definition format template \" int f (a, b)\"\n", stderr);
-    fputs("  -C template      Set format for function definition with parameter comments\n", stderr);
-    fputs("  -D name[=value]  Define C preprocessor symbol\n", stderr);
-    fputs("  -U name          Undefine C preprocessor symbol\n", stderr);
-    fputs("  -I directory     Add #include search directory\n", stderr);
-    fputs("  -E command       Run specified C preprocessor command\n", stderr);
-    fputs("  -E 0             Do not run any C preprocessor\n", stderr);
-    fputs("  -V               Print version information\n", stderr);
-    exit(EXIT_FAILURE);
+    fputs("  -m               Put macro around prototype parameters\n", stdout);
+    fputs("  -M name          Set name of prototype macro\n", stdout);
+    fputs("  -d               Omit prototype macro definition\n", stdout);
+    fputs("  -P template      Set prototype format template \" int f (a, b)\"\n", stdout);
+    fputs("  -F template      Set function definition format template \" int f (a, b)\"\n", stdout);
+    fputs("  -C template      Set format for function definition with parameter comments\n", stdout);
+    fputs("  -D name[=value]  Define C preprocessor symbol\n", stdout);
+    fputs("  -U name          Undefine C preprocessor symbol\n", stdout);
+    fputs("  -I directory     Add #include search directory\n", stdout);
+    fputs("  -E command       Run specified C preprocessor command\n", stdout);
+    fputs("  -E 0             Do not run any C preprocessor\n", stdout);
+    fputs("  -V               Print version information\n", stdout);
+    exit(exitcode);
 }
 
 #define CHUNK(n) (((n) | 7) + 1)
@@ -473,38 +488,8 @@ quote_string(char *s)
 
 #define MAX_OPTIONS 40
 
-#define ALL_OPTIONS "\
-B:\
-C:\
-D:\
-E:\
-F:\
-I:\
-M:\
-O:\
-P:\
-S\
-T\
-U:\
-V\
-X:\
-a\
-b\
-c\
-d\
-e\
-f:\
-i\
-l\
-m\
-o:\
-p\
-q\
-s\
-t\
-v\
-x\
-"
+#define ALL_OPTIONS "B:C:D:E:F:I:M:O:P:STU:VX:abcdef:hilmNno:pqstvx"
+
 /* Process the command line options.
  */
 static void
@@ -559,6 +544,12 @@ process_options(int *pargc, char ***pargv)
 
     while ((c = getopt(argc, argv, ALL_OPTIONS)) != EOF) {
 	switch (c) {
+  case 'N':
+      file_comments = FALSE;
+      break;
+  case 'n':
+      no_stdinc = TRUE;
+      break;
 	case 'I':
 #ifdef	vms
 	    add2list(cpp_include, optarg);
@@ -625,52 +616,52 @@ process_options(int *pargc, char ***pargv)
 	    while (*s != '\0' && !isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 	    *s++ = '\0';
 	    while (*s != '\0' && isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 
 	    fmt[i].declarator_prefix = s;
 	    while (*s != '\0' && !isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 	    *s++ = '\0';
 	    while (*s != '\0' && isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 
 	    fmt[i].declarator_suffix = s;
 	    while (*s != '\0' && *s != '(')
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 	    *s++ = '\0';
 
 	    fmt[i].first_param_prefix = s;
 	    while (*s != '\0' && !isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 	    *s++ = '\0';
 	    while (*s != '\0' && *s != ',')
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 
 	    fmt[i].middle_param_prefix = ++s;
 	    while (*s != '\0' && !isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 	    *s++ = '\0';
 	    while (*s != '\0' && isalnum(UCH(*s)))
 		++s;
 	    if (*s == '\0')
-		usage();
+		usage(EXIT_FAILURE);
 
 	    fmt[i].last_param_suffix = s;
 	    while (*s != '\0' && *s != ')')
@@ -681,7 +672,7 @@ process_options(int *pargc, char ***pargv)
 	case 'f':
 	    proto_style = atoi(optarg);
 	    if (proto_style < 0 || proto_style > PROTO_ANSI)
-		usage();
+		usage(EXIT_FAILURE);
 	    break;
 	case 'm':
 	    proto_macro = TRUE;
@@ -743,14 +734,14 @@ process_options(int *pargc, char ***pargv)
 	    extern_in = (unsigned) atoi(optarg);
 	    do_tracking = TRUE;
 	    if ((int) extern_in < 0)
-		usage();
+		usage(EXIT_FAILURE);
 	    break;
 #endif /* OPT_LINTLIBRARY */
 	case 'x':
 	    extern_in = MAX_INC_DEPTH;
 	    break;
 	default:
-	    usage();
+	    usage(c == 'h' ? EXIT_SUCCESS : EXIT_FAILURE);
 	}
     }
 
@@ -777,16 +768,6 @@ main(int argc, char *argv[])
     /* Expand file wild cards. */
     _wildcard(&argc, &argv);
 #endif
-
-    add_inc_dir(CURRENT_DIR);
-#if defined(MSDOS) && defined(__TURBOC__)
-    add_inc_dir("/tc/include");
-#elif defined(vms)
-    add_inc_dir("sys$library:");
-#else
-    add_inc_dir("/usr/include");
-#endif
-
     /* Get the program name from the 0th argument, stripping the pathname
      * for readability.
      */
@@ -819,6 +800,11 @@ main(int argc, char *argv[])
     argv[0] = progname;		/* do this so getopt is consistent with us */
 
     process_options(&argc, &argv);
+
+    if(!no_stdinc) {
+        add_inc_dir(CURRENT_DIR);
+        add_inc_dir(PREFIX);
+    }
 
 #if OPT_LINTLIBRARY
     if (lintLibrary()) {

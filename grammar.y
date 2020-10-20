@@ -1004,14 +1004,14 @@ process_file(FILE *infile, const char *name)
     include_file(strcpy(base_file, name), func_style != FUNC_NONE);
     if (file_comments) {
 #if OPT_LINTLIBRARY
-	if (lintLibrary()) {
-	    put_blankline(stdout);
-	    begin_tracking();
-	}
+		if (lintLibrary()) {
+		    put_blankline(stdout);
+		    begin_tracking();
+		}
 #endif
-	put_string(stdout, "/* ");
-	put_string(stdout, cur_file_name());
-	put_string(stdout, " */\n");
+		put_string(stdout, "/* ");
+		put_string(stdout, cur_file_name());
+		put_string(stdout, " */\n");
     }
     yyparse();
     free_symbol_table(define_names);

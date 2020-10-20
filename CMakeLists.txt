@@ -19,6 +19,7 @@ macro(check_include NAME)
   endif(HAVE_${VARNAME})
   if(FOUND)
   message(CHECK_PASS "found")
+  add_definitions(-DHAVE_${VARNAME}=1)
   else(FOUND)
   message(CHECK_PASS "not found")
   endif(FOUND)
@@ -30,6 +31,7 @@ check_include(memory.h)
 check_include(stdlib.h)
 check_include(string.h)
 check_include(unistd.h)
+
 
 flex_target(LEX lex.l ${CMAKE_CURRENT_BINARY_DIR}/lex.yy.c DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/y.tab.h)
 
@@ -54,3 +56,6 @@ add_executable(
   trace.h
   yyerror.c
   ${BISON_GRAMMAR_OUTPUTS})
+target_compile_definitions(cproto PUBLIC PREFIX="${CMAKE_INSTALL_PREFIX}")
+
+install(TARGETS cproto DESTINATION bin)
